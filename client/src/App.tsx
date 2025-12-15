@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useWebSocket } from "@/hooks/use-websocket";
 import Dashboard from "@/pages/dashboard";
 import Logs from "@/pages/logs";
 import Commands from "@/pages/commands";
@@ -31,6 +32,8 @@ function Router() {
 }
 
 function AppContent() {
+  useWebSocket();
+
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",

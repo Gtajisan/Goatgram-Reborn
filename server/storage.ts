@@ -16,6 +16,7 @@ import {
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
+import { wsManager } from "./websocket";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "database.json");
@@ -293,6 +294,7 @@ export class MemStorage implements IStorage {
   async updateSession(updates: Partial<Session>): Promise<Session> {
     this.data.session = { ...this.data.session!, ...updates };
     this.save();
+    wsManager.broadcastSession(this.data.session);
     return this.data.session;
   }
 
@@ -309,6 +311,7 @@ export class MemStorage implements IStorage {
       this.data.activityLogs = this.data.activityLogs.slice(0, 1000);
     }
     this.save();
+    wsManager.broadcastLog(newLog);
     return newLog;
   }
 
@@ -355,6 +358,8 @@ export class MemStorage implements IStorage {
   async incrementStat(stat: "messagesReceived" | "messagesSent" | "commandsExecuted"): Promise<void> {
     this.data.stats[stat]++;
     this.save();
+    const stats = await this.getStats();
+    wsManager.broadcastStats(stats);
   }
 }
 
