@@ -1,0 +1,130 @@
+{
+  "users": {},
+  "threads": {},
+  "commands": {
+    "671e121a-3405-4945-a6e6-730d8d906724": {
+      "id": "671e121a-3405-4945-a6e6-730d8d906724",
+      "name": "help",
+      "description": "Shows available commands and their usage",
+      "category": "utility",
+      "usage": "/help [command]",
+      "cooldown": 3,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "dce0ae5f-cd1e-4f6e-8a0b-6a953e6acd87": {
+      "id": "dce0ae5f-cd1e-4f6e-8a0b-6a953e6acd87",
+      "name": "ping",
+      "description": "Check bot response time",
+      "category": "utility",
+      "usage": "/ping",
+      "cooldown": 3,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "af10b367-b273-4ed6-8673-788e91d3db9f": {
+      "id": "af10b367-b273-4ed6-8673-788e91d3db9f",
+      "name": "uptime",
+      "description": "Shows bot uptime",
+      "category": "utility",
+      "usage": "/uptime",
+      "cooldown": 5,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "b10b1c9f-555f-4f13-b61f-822655171c4e": {
+      "id": "b10b1c9f-555f-4f13-b61f-822655171c4e",
+      "name": "stats",
+      "description": "Shows bot statistics",
+      "category": "utility",
+      "usage": "/stats",
+      "cooldown": 5,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "480b8a6f-15ef-43be-bbfc-49c48d3f55e6": {
+      "id": "480b8a6f-15ef-43be-bbfc-49c48d3f55e6",
+      "name": "uid",
+      "description": "Get user ID",
+      "category": "utility",
+      "usage": "/uid [@mention]",
+      "cooldown": 3,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "7daaebd2-5562-4739-8f2f-75652c3103ca": {
+      "id": "7daaebd2-5562-4739-8f2f-75652c3103ca",
+      "name": "tid",
+      "description": "Get thread/conversation ID",
+      "category": "utility",
+      "usage": "/tid",
+      "cooldown": 3,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "cb8571a0-9ec6-49c8-a967-f564c6aedbde": {
+      "id": "cb8571a0-9ec6-49c8-a967-f564c6aedbde",
+      "name": "say",
+      "description": "Make the bot say something",
+      "category": "fun",
+      "usage": "/say [message]",
+      "cooldown": 3,
+      "isEnabled": true,
+      "usageCount": 0
+    },
+    "242f8808-8813-4e8b-b6bd-c7a05c794aff": {
+      "id": "242f8808-8813-4e8b-b6bd-c7a05c794aff",
+      "name": "about",
+      "description": "About this bot",
+      "category": "info",
+      "usage": "/about",
+      "cooldown": 5,
+      "isEnabled": true,
+      "usageCount": 0
+    }
+  },
+  "botConfig": {
+    "id": "default",
+    "prefix": "/",
+    "autoReconnect": true,
+    "randomUserAgent": true,
+    "autoMarkRead": false,
+    "selfListen": false,
+    "listenTimeout": 60000,
+    "listenInterval": 3000,
+    "proxy": null,
+    "language": "en"
+  },
+  "session": {
+    "id": "default",
+    "appState": null,
+    "username": null,
+    "userId": null,
+    "isConnected": false,
+    "lastConnected": null,
+    "connectionHealth": 100
+  },
+  "activityLogs": [
+    {
+      "id": "088c654b-1a80-4abc-af76-8b264f29a9b4",
+      "type": "info",
+      "message": "Loaded 8 commands",
+      "details": null,
+      "timestamp": "2025-12-15T07:39:14.577Z"
+    },
+    {
+      "id": "6d309d03-2c7a-4d98-a460-a14a3cf72d0f",
+      "type": "info",
+      "message": "Loaded 8 commands",
+      "details": null,
+      "timestamp": "2025-12-15T07:33:59.773Z"
+    }
+  ],
+  "stats": {
+    "uptime": 0,
+    "startTime": null,
+    "messagesReceived": 0,
+    "messagesSent": 0,
+    "commandsExecuted": 0
+  }
+}

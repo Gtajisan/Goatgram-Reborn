@@ -1,7 +1,9 @@
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusIndicator, HealthBar } from "@/components/status-indicator";
 import {
   Clock,
@@ -9,36 +11,17 @@ import {
   MessageSquare,
   Zap,
   RefreshCw,
-  Download,
   Power,
   Send,
   Inbox,
 } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { BotStats, ActivityLog } from "@shared/schema";
 
-// Mock data for development - will be replaced with API calls
-const mockStats: BotStats = {
-  uptime: 86400000, // 24 hours in ms
-  totalUsers: 156,
-  totalThreads: 42,
-  messagesReceived: 1247,
-  messagesSent: 892,
-  commandsExecuted: 324,
-  connectionStatus: 'connected',
-  connectionHealth: 95,
-};
-
-const mockActivity: ActivityLog[] = [
-  { id: '1', type: 'message', message: 'Received message from @john_doe', details: 'Thread: Main Group', timestamp: new Date() },
-  { id: '2', type: 'info', message: 'Command /help executed successfully', details: 'User: @jane_smith', timestamp: new Date(Date.now() - 60000) },
-  { id: '3', type: 'warn', message: 'Rate limit approaching', details: '85% of limit used', timestamp: new Date(Date.now() - 120000) },
-  { id: '4', type: 'message', message: 'Sent response to @alex_k', details: 'Thread: DM', timestamp: new Date(Date.now() - 180000) },
-  { id: '5', type: 'info', message: 'New user registered: @new_user123', details: null, timestamp: new Date(Date.now() - 240000) },
-];
-
-function formatUptime(ms: number): string {
-  const hours = Math.floor(ms / 3600000);
-  const minutes = Math.floor((ms % 3600000) / 60000);
+function formatUptime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   if (hours >= 24) {
     const days = Math.floor(hours / 24);
     return `${days}d ${hours % 24}h`;
@@ -46,13 +29,15 @@ function formatUptime(ms: number): string {
   return `${hours}h ${minutes}m`;
 }
 
-function formatTimestamp(date: Date): string {
+function formatTimestamp(date: Date | string | null): string {
+  if (!date) return 'Never';
+  const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = now.getTime() - d.getTime();
   if (diff < 60000) return 'Just now';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return date.toLocaleDateString();
+  return d.toLocaleDateString();
 }
 
 function getLogTypeStyles(type: string) {
@@ -69,8 +54,41 @@ function getLogTypeStyles(type: string) {
 }
 
 export default function Dashboard() {
-  const stats = mockStats;
-  const activity = mockActivity;
+  const { toast } = useToast();
+
+  const { data: stats, isLoading: statsLoading } = useQuery<BotStats>({
+    queryKey: ['/api/stats'],
+    refetchInterval: 5000,
+  });
+
+  const { data: activity, isLoading: activityLoading } = useQuery<ActivityLog[]>({
+    queryKey: ['/api/logs'],
+    refetchInterval: 5000,
+  });
+
+  const restartMutation = useMutation({
+    mutationFn: () => apiRequest('/api/bot/restart', { method: 'POST' }),
+    onSuccess: () => {
+      toast({ title: "Bot restarting", description: "The bot is being restarted." });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+    },
+    onError: () => {
+      toast({ title: "Restart failed", description: "Could not restart the bot.", variant: "destructive" });
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: () => apiRequest('/api/bot/stop', { method: 'POST' }),
+    onSuccess: () => {
+      toast({ title: "Bot stopped", description: "The bot has been stopped." });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+    },
+    onError: () => {
+      toast({ title: "Stop failed", description: "Could not stop the bot.", variant: "destructive" });
+    },
+  });
+
+  const connectionStatus = stats?.connectionStatus || 'offline';
 
   return (
     <div className="p-6 space-y-6">
@@ -79,10 +97,9 @@ export default function Dashboard() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-muted-foreground">Monitor your bot's performance and activity</p>
         </div>
-        <StatusIndicator status={stats.connectionStatus} size="lg" />
+        <StatusIndicator status={connectionStatus} size="lg" />
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card data-testid="card-uptime">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
@@ -90,8 +107,14 @@ export default function Dashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono">{formatUptime(stats.uptime)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Since last restart</p>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold font-mono">{formatUptime(stats?.uptime || 0)}</div>
+                <p className="text-xs text-muted-foreground mt-1">Since last restart</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -101,8 +124,14 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Registered users</p>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{(stats?.totalUsers || 0).toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Registered users</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -112,24 +141,35 @@ export default function Dashboard() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalThreads}</div>
-            <p className="text-xs text-muted-foreground mt-1">DMs and Groups</p>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-12" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.totalThreads || 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">DMs and Groups</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
         <Card data-testid="card-commands">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Commands Today</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Commands Executed</CardTitle>
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.commandsExecuted}</div>
-            <p className="text-xs text-muted-foreground mt-1">Commands executed</p>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.commandsExecuted || 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total commands</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Message Stats & Connection Health */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-1" data-testid="card-messages">
           <CardHeader>
@@ -141,43 +181,49 @@ export default function Dashboard() {
                 <Inbox className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">Received</span>
               </div>
-              <span className="font-mono font-semibold">{stats.messagesReceived.toLocaleString()}</span>
+              <span className="font-mono font-semibold">{(stats?.messagesReceived || 0).toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Send className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">Sent</span>
               </div>
-              <span className="font-mono font-semibold">{stats.messagesSent.toLocaleString()}</span>
+              <span className="font-mono font-semibold">{(stats?.messagesSent || 0).toLocaleString()}</span>
             </div>
             <div className="pt-2 border-t">
-              <HealthBar health={stats.connectionHealth} />
+              <HealthBar health={stats?.connectionHealth || 0} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
         <Card className="lg:col-span-1" data-testid="card-actions">
           <CardHeader>
             <CardTitle className="text-base">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-restart">
-              <RefreshCw className="h-4 w-4" />
-              Restart Bot
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-2" 
+              data-testid="button-restart"
+              onClick={() => restartMutation.mutate()}
+              disabled={restartMutation.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 ${restartMutation.isPending ? 'animate-spin' : ''}`} />
+              {restartMutation.isPending ? 'Restarting...' : 'Restart Bot'}
             </Button>
-            <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-refresh-session">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-2" 
+              data-testid="button-stop"
+              onClick={() => stopMutation.mutate()}
+              disabled={stopMutation.isPending || connectionStatus === 'offline'}
+            >
               <Power className="h-4 w-4" />
-              Refresh Session
-            </Button>
-            <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-export-logs">
-              <Download className="h-4 w-4" />
-              Export Logs
+              {stopMutation.isPending ? 'Stopping...' : 'Stop Bot'}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Connection Status Card */}
         <Card className="lg:col-span-1" data-testid="card-connection">
           <CardHeader>
             <CardTitle className="text-base">Connection Status</CardTitle>
@@ -185,12 +231,12 @@ export default function Dashboard() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
-              <StatusIndicator status={stats.connectionStatus} showLabel={true} />
+              <StatusIndicator status={connectionStatus} showLabel={true} />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Health</span>
-              <Badge variant={stats.connectionHealth >= 80 ? "default" : "secondary"}>
-                {stats.connectionHealth}%
+              <Badge variant={(stats?.connectionHealth || 0) >= 80 ? "default" : "secondary"}>
+                {stats?.connectionHealth || 0}%
               </Badge>
             </div>
             <div className="flex items-center justify-between">
@@ -201,7 +247,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Activity Feed */}
       <Card data-testid="card-activity">
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">Recent Activity</CardTitle>
@@ -209,27 +254,39 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[300px] pr-4">
-            <div className="space-y-2">
-              {activity.map((log) => (
-                <div
-                  key={log.id}
-                  className={`p-3 rounded-md border-l-2 ${getLogTypeStyles(log.type)}`}
-                  data-testid={`activity-log-${log.id}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{log.message}</p>
-                      {log.details && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>
-                      )}
+            {activityLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : activity && activity.length > 0 ? (
+              <div className="space-y-2">
+                {activity.slice(0, 20).map((log) => (
+                  <div
+                    key={log.id}
+                    className={`p-3 rounded-md border-l-2 ${getLogTypeStyles(log.type)}`}
+                    data-testid={`activity-log-${log.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{log.message}</p>
+                        {log.details && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatTimestamp(log.timestamp)}
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatTimestamp(log.timestamp!)}
-                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                No activity yet
+              </div>
+            )}
           </ScrollArea>
         </CardContent>
       </Card>

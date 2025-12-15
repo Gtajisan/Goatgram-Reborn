@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -14,20 +16,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Search, Plus, Terminal, Clock, Zap, FileCode } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Command } from "@shared/schema";
 
-const mockCommands: Command[] = [
-  { id: '1', name: 'help', description: 'Display all available commands and their usage', category: 'utility', usage: '/help [command]', cooldown: 5, isEnabled: true, usageCount: 156 },
-  { id: '2', name: 'ping', description: 'Check bot response time and latency', category: 'utility', usage: '/ping', cooldown: 3, isEnabled: true, usageCount: 89 },
-  { id: '3', name: 'info', description: 'Display bot information and developer credits', category: 'utility', usage: '/info', cooldown: 5, isEnabled: true, usageCount: 45 },
-  { id: '4', name: 'weather', description: 'Get current weather for a location', category: 'fun', usage: '/weather <city>', cooldown: 10, isEnabled: true, usageCount: 234 },
-  { id: '5', name: 'quote', description: 'Get a random inspirational quote', category: 'fun', usage: '/quote', cooldown: 5, isEnabled: true, usageCount: 178 },
-  { id: '6', name: 'admin', description: 'Admin-only commands for bot management', category: 'admin', usage: '/admin <action>', cooldown: 0, isEnabled: true, usageCount: 12 },
-  { id: '7', name: 'ban', description: 'Ban a user from using the bot', category: 'admin', usage: '/ban <username>', cooldown: 0, isEnabled: false, usageCount: 3 },
-  { id: '8', name: 'mute', description: 'Mute a thread temporarily', category: 'moderation', usage: '/mute <duration>', cooldown: 5, isEnabled: true, usageCount: 28 },
-];
-
-function getCategoryColor(category: string) {
+function getCategoryColor(category: string | null) {
   switch (category) {
     case 'admin':
       return 'bg-status-busy/20 text-status-busy';
@@ -41,17 +34,41 @@ function getCategoryColor(category: string) {
 }
 
 export default function Commands() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const categories = [...new Set(mockCommands.map(cmd => cmd.category))];
+  const { data: commands, isLoading } = useQuery<Command[]>({
+    queryKey: ['/api/commands'],
+  });
 
-  const filteredCommands = mockCommands.filter(cmd => {
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isEnabled }: { id: string; isEnabled: boolean }) =>
+      apiRequest(`/api/commands/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isEnabled }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/commands'] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update command", variant: "destructive" });
+    },
+  });
+
+  const allCommands = commands || [];
+  const categories = [...new Set(allCommands.map(cmd => cmd.category).filter(Boolean))] as string[];
+
+  const filteredCommands = allCommands.filter(cmd => {
     const matchesSearch = cmd.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cmd.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || cmd.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const handleToggle = (command: Command) => {
+    toggleMutation.mutate({ id: command.id, isEnabled: !command.isEnabled });
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -83,7 +100,6 @@ export default function Commands() {
         </Dialog>
       </div>
 
-      {/* Search and Filters */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -118,7 +134,6 @@ export default function Commands() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
@@ -126,7 +141,7 @@ export default function Commands() {
               <span className="text-sm text-muted-foreground">Total</span>
               <Terminal className="h-4 w-4 text-muted-foreground" />
             </div>
-            <p className="text-2xl font-bold mt-1">{mockCommands.length}</p>
+            <p className="text-2xl font-bold mt-1">{allCommands.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -135,7 +150,7 @@ export default function Commands() {
               <span className="text-sm text-muted-foreground">Enabled</span>
               <Zap className="h-4 w-4 text-status-online" />
             </div>
-            <p className="text-2xl font-bold mt-1">{mockCommands.filter(c => c.isEnabled).length}</p>
+            <p className="text-2xl font-bold mt-1">{allCommands.filter(c => c.isEnabled).length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -144,7 +159,7 @@ export default function Commands() {
               <span className="text-sm text-muted-foreground">Disabled</span>
               <Zap className="h-4 w-4 text-muted-foreground" />
             </div>
-            <p className="text-2xl font-bold mt-1">{mockCommands.filter(c => !c.isEnabled).length}</p>
+            <p className="text-2xl font-bold mt-1">{allCommands.filter(c => !c.isEnabled).length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -153,50 +168,58 @@ export default function Commands() {
               <span className="text-sm text-muted-foreground">Total Uses</span>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </div>
-            <p className="text-2xl font-bold mt-1">{mockCommands.reduce((a, c) => a + (c.usageCount || 0), 0)}</p>
+            <p className="text-2xl font-bold mt-1">{allCommands.reduce((a, c) => a + (c.usageCount || 0), 0)}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Commands Grid */}
       <ScrollArea className="h-[calc(100vh-400px)]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCommands.map((command) => (
-            <Card key={command.id} className="hover-elevate" data-testid={`command-card-${command.name}`}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="h-4 w-4 text-primary" />
-                    <CardTitle className="text-base font-mono">/{command.name}</CardTitle>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-48" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCommands.map((command) => (
+              <Card key={command.id} className="hover-elevate" data-testid={`command-card-${command.name}`}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base font-mono">/{command.name}</CardTitle>
+                    </div>
+                    <Switch
+                      checked={command.isEnabled ?? false}
+                      onCheckedChange={() => handleToggle(command)}
+                      data-testid={`switch-command-${command.name}`}
+                    />
                   </div>
-                  <Switch
-                    checked={command.isEnabled ?? false}
-                    data-testid={`switch-command-${command.name}`}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">{command.description}</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary" className={getCategoryColor(command.category || 'utility')}>
-                    {command.category}
-                  </Badge>
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {command.cooldown}s cooldown
-                  </Badge>
-                </div>
-                <div className="pt-2 border-t flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Usage:</span>
-                  <code className="font-mono text-xs bg-muted px-2 py-1 rounded">{command.usage}</code>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Times used:</span>
-                  <span className="font-mono">{command.usageCount}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">{command.description || 'No description'}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className={getCategoryColor(command.category)}>
+                      {command.category || 'general'}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {command.cooldown || 5}s cooldown
+                    </Badge>
+                  </div>
+                  <div className="pt-2 border-t flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Usage:</span>
+                    <code className="font-mono text-xs bg-muted px-2 py-1 rounded">{command.usage || `/${command.name}`}</code>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Times used:</span>
+                    <span className="font-mono">{command.usageCount || 0}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </ScrollArea>
     </div>
   );
